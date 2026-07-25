@@ -1,0 +1,88 @@
+import urllib.request
+import urllib.error
+import urllib.parse
+import json
+
+while True:
+    username = input("Enter a GitHub username (or press Enter to quit): ").strip()
+
+    if len(username) < 1:
+        break 
+
+    url = f'https://api.github.com/users/{username}/events'
+
+    try:
+        print(f"\nRetrieving {username}'s GitHub log...")
+        
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Python-GitHub-CLI'}
+        )
+        
+        with urllib.request.urlopen(req) as response:
+            raw = response.read().decode('utf-8')
+
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            print(f"Error: User '{username}' was not found.\n")
+        elif e.code == 403:
+            print("Error: GitHub API rate limit reached. Try again later.\n")
+        else:
+            print(f"HTTP Error: {e.code} - {e.reason}\n")
+        continue
+    except Exception as e:
+        print('Error fetching data:', e, '\n')
+        continue
+
+    data = json.loads(raw)
+
+    if not data:
+        print(f"User '{username}' exists, but has no recent public activity.\n")
+        continue
+
+    filename = f'{username}.json'
+    with open(filename, 'w', encoding='utf-8') as fh:
+        json.dump(data, fh, indent=2)
+
+    PushCount = 0
+    CreateCount = 0
+    WatchCount = 0
+    Others = 0
+    repos = []
+
+    for event in data:
+        event_type = event.get('type')
+        if event_type == 'PushEvent':
+            PushCount += 1
+        elif event_type == 'CreateEvent':
+            CreateCount += 1
+        elif event_type == 'WatchEvent':
+            WatchCount += 1
+        else:
+            Others += 1
+
+        repo_name = event.get('repo', {}).get('name')
+        if repo_name and repo_name not in repos:
+            repos.append(repo_name)
+
+    n = 10
+    width = (2 * n) + 26
+    print('=' * width)
+    print('=' * n + ' GitHub Activity Analyzer ' + '=' * n)
+    print('=' * width + '\n')
+
+    print('Username:', username)
+    print('Total Recent Events:', len(data), '\n')
+
+    print('Activity Breakdown:')
+    print('  • Push Events:', PushCount)
+    print('  • Create Events:', CreateCount)
+    print('  • Watch Events (Starred):', WatchCount)
+    print('  • Other Events:', Others, '\n')
+
+    print('Recent Activity Recorded in Repos:')
+    for i, repo in enumerate(repos, start=1):
+        print(f'  {i}. {repo}')
+
+    print('\n' + '=' * width)
+    print(f"{username}'s data is saved in {filename}.\n")
